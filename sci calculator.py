@@ -1,9 +1,4 @@
-scientific-calculator/
-│
-├── app.py
-├── requirements.txt
-├── README.md
-└── .gitignore
+
 import streamlit as st
 import math
 
