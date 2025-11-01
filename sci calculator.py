@@ -94,3 +94,36 @@ st.markdown(f"<div class='result'>{st.session_state.result}</div>", unsafe_allow
 
 # ---------- BUTTON LAYOUT ----------
 layout = [
+    ["C", "(", ")", "÷"],
+    ["7", "8", "9", "×"],
+    ["4", "5", "6", "-"],
+    ["1", "2", "3", "+"],
+    ["0", ".", "^", "="],
+    ["sin(", "cos(", "tan(", "√("],
+    ["log(", "ln(", "π", "e"],
+    ["x!", "%", "", ""]
+]
+
+# ---------- RENDER BUTTONS ----------
+for row in layout:
+    cols = st.columns(4)
+    for i, symbol in enumerate(row):
+        if symbol:
+            css_class = "num"
+            if symbol in ["+", "-", "×", "÷", "^"]:
+                css_class = "op"
+            elif symbol in ["sin(", "cos(", "tan(", "√(", "log(", "ln(", "π", "e", "x!"]:
+                css_class = "func"
+            elif symbol == "C":
+                css_class = "ctrl"
+            elif symbol == "=":
+                css_class = "eq"
+
+            # Convert symbols for internal computation
+            display_symbol = symbol.replace("×", "*").replace("÷", "/").replace("x!", "!")
+            st.markdown(f"<div class='{css_class}'>", unsafe_allow_html=True)
+            st.button(symbol, key=symbol, on_click=press_button, args=(display_symbol,))
+            st.markdown("</div>", unsafe_allow_html=True)
+
+# ---------- FOOTER ----------
+st.markdown("<hr><center>🧮 Casio-style Scientific Calculator built with Streamlit</center>", unsafe_allow_html=True)
