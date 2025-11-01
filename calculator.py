@@ -1,16 +1,4 @@
-calculator-app/
-│
-├── app.py                     # Main Streamlit app file
-├── requirements.txt           # Python dependencies
-├── README.md                  # Project description and instructions
-│
-├── .gitignore                 # Files/folders Git should ignore
-│
-├── assets/                    # (Optional) Folder for images, icons, etc.
-│   └── logo.png
-│
-└── tests/                     # (Optional) Folder for future test scripts
-    └── test_app.py
+
 import streamlit as st
 
 st.title("🧮 Simple Calculator")
