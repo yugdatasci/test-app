@@ -1,11 +1,13 @@
 import streamlit as st
 import math
+import ast
 
 # --- Page Config ---
 st.set_page_config(page_title="Advanced Scientific Calculator", page_icon="🧮", layout="centered")
 
 # --- Custom CSS (Eye-Catching Style) ---
-st.markdown("""
+st.markdown(
+    """
 <style>
     .stApp {
         background: radial-gradient(circle at top, #1e1e2e, #111);
@@ -21,6 +23,7 @@ st.markdown("""
         border-radius: 12px;
         margin-bottom: 15px;
         box-shadow: inset 0 0 10px #00ffb3;
+        word-break: break-all;
     }
     .stButton>button {
         background: linear-gradient(145deg, #202020, #3a3a3a);
@@ -45,92 +48,144 @@ st.markdown("""
         font-size: 1em !important;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.title("🧮 Advanced Scientific Calculator")
+st.title("🧮 Advanced Scientific Calculator (Clean & Safe)")
 
 # --- Session State ---
 if "display" not in st.session_state:
     st.session_state.display = ""
+if "last_ans" not in st.session_state:
+    st.session_state.last_ans = None
+if "deg_mode" not in st.session_state:
+    st.session_state.deg_mode = False  # False means trig uses radians
 
-# --- Calculator Logic ---
-def calculate(expression):
+# --- Safe evaluation using ast ---
+ALLOWED_NODE_TYPES = (
+    ast.Expression,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Num,         # Python <3.8
+    ast.Constant,    # Python >=3.8
+    ast.Call,
+    ast.Name,
+    ast.Load,
+    ast.Tuple,
+    ast.List,
+    ast.Subscript,
+    ast.Index,
+    ast.Slice,
+    ast.BinOp,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.Pow,
+    ast.Mod,
+    ast.USub,
+    ast.UAdd,
+    ast.FloorDiv,
+)
+
+def _validate_ast(node, allowed_names):
+    """Recursively validate AST nodes and names."""
+    for child in ast.walk(node):
+        if not isinstance(child, ALLOWED_NODE_TYPES):
+            raise ValueError(f"Disallowed expression: {type(child).__name__}")
+        # If it's a call, ensure the function is a Name (no attribute access)
+        if isinstance(child, ast.Call):
+            if isinstance(child.func, ast.Name):
+                func_name = child.func.id
+                if func_name not in allowed_names:
+                    raise ValueError(f"Use of function '{func_name}' is not allowed.")
+            else:
+                raise ValueError("Only direct function names are allowed (no attribute access).")
+        # If it's a Name, ensure it's allowed (constants, variables)
+        if isinstance(child, ast.Name):
+            if child.id not in allowed_names:
+                raise ValueError(f"Use of name '{child.id}' is not allowed.")
+
+def safe_eval(expr: str, names: dict):
+    """
+    Evaluate `expr` safely using ast parsing and a whitelist of names.
+    `names` is a dict mapping allowed names to callables/constants.
+    """
+    # Normalize some common unicode operators
+    expr = expr.replace("×", "*").replace("÷", "/").replace("^", "**")
+    # Parse to AST
     try:
-        expr = expression.replace("×", "*").replace("÷", "/").replace("^", "**")
-        result = eval(expr, {"__builtins__": None}, math.__dict__)
-        return result
-    except Exception:
-        return "Error"
+        node = ast.parse(expr, mode="eval")
+    except Exception as e:
+        raise ValueError("Invalid expression syntax.") from e
+    # Validate AST
+    _validate_ast(node, names.keys())
+    # Evaluate in a restricted environment
+    try:
+        return eval(compile(node, "<string>", "eval"), {"__builtins__": None}, names)
+    except Exception as e:
+        # Re-raise with a friendlier message
+        raise ValueError(f"Error evaluating expression: {e}") from e
 
-# --- Display Screen ---
-st.markdown(f"<div class='calc-display'>{st.session_state.display or '0'}</div>", unsafe_allow_html=True)
+# --- Build allowed names / functions depending on degree/radian mode ---
+def make_allowed_names(deg_mode: bool):
+    allowed = {}
 
-# --- Buttons Layout ---
-buttons = [
-    ["7", "8", "9", "÷", "C"],
-    ["4", "5", "6", "×", "("],
-    ["1", "2", "3", "-", ")"],
-    ["0", ".", "^", "+", "="],
-]
+    # Basic math constants
+    allowed["pi"] = math.pi
+    allowed["π"] = math.pi
+    allowed["e"] = math.e
 
-scientific = [
-    ["sin", "cos", "tan", "log", "ln"],
-    ["sqrt", "exp", "abs", "!", "⌫"],
-    ["π", "e", "deg", "rad", "Ans"]
-]
+    # Numeric constructors
+    allowed["int"] = int
+    allowed["float"] = float
+    allowed["abs"] = abs
+    allowed["round"] = round
 
-# --- Handle Buttons ---
-def press(label):
-    if label == "C":
-        st.session_state.display = ""
-    elif label == "⌫":
-        st.session_state.display = st.session_state.display[:-1]
-    elif label == "=":
-        res = calculate(st.session_state.display)
-        st.session_state.display = str(res)
-        st.session_state.last_ans = res
-    elif label == "Ans":
-        if "last_ans" in st.session_state:
-            st.session_state.display += str(st.session_state.last_ans)
-    elif label in ["sin", "cos", "tan", "log", "ln", "sqrt", "exp", "abs"]:
-        func = {"ln": "log"}.get(label, label)
-        st.session_state.display += f"math.{func}("
-    elif label == "!":
-        st.session_state.display += "math.factorial("
-    elif label == "π":
-        st.session_state.display += "math.pi"
-    elif label == "e":
-        st.session_state.display += "math.e"
-    elif label == "deg":
-        st.session_state.display = str(math.degrees(eval(st.session_state.display)))
-    elif label == "rad":
-        st.session_state.display = str(math.radians(eval(st.session_state.display)))
+    # pow is allowed but we also have '**' in expression
+    allowed["pow"] = pow
+
+    # factorial wrapper — validate at call time
+    def fact(n):
+        if not (isinstance(n, (int,))):
+            raise ValueError("factorial() only accepts integers.")
+        if n < 0:
+            raise ValueError("factorial() only accepts non-negative integers.")
+        return math.factorial(n)
+    allowed["fact"] = fact
+    allowed["factorial"] = fact
+    allowed["!"] = fact  # user convenience but will only work if they write fact(...)
+
+    # logarithms: log (natural), log10
+    allowed["ln"] = math.log
+    allowed["log"] = math.log  # natural log
+    allowed["log10"] = math.log10
+
+    # exp and sqrt
+    allowed["exp"] = math.exp
+    allowed["sqrt"] = math.sqrt
+
+    # Trigonometric wrappers that respect degree/radian mode
+    if deg_mode:
+        allowed["sin"] = lambda x: math.sin(math.radians(x))
+        allowed["cos"] = lambda x: math.cos(math.radians(x))
+        allowed["tan"] = lambda x: math.tan(math.radians(x))
+        allowed["asin"] = lambda x: math.degrees(math.asin(x))
+        allowed["acos"] = lambda x: math.degrees(math.acos(x))
+        allowed["atan"] = lambda x: math.degrees(math.atan(x))
     else:
-        st.session_state.display += label
+        allowed["sin"] = math.sin
+        allowed["cos"] = math.cos
+        allowed["tan"] = math.tan
+        allowed["asin"] = math.asin
+        allowed["acos"] = math.acos
+        allowed["atan"] = math.atan
 
-# --- Scientific Buttons ---
-st.markdown("### 🔬 Scientific Functions")
-for row in scientific:
-    cols = st.columns(len(row))
-    for i, label in enumerate(row):
-        with cols[i]:
-            if st.button(label, key=f"sci_{label}"):
-                press(label)
+    # include last answer variable 'Ans' and 'ans'
+    allowed["Ans"] = st.session_state.get("last_ans", None)
+    allowed["ans"] = st.session_state.get("last_ans", None)
 
-# --- Numeric Buttons ---
-st.markdown("### 🔢 Basic Operations")
-for row in buttons:
-    cols = st.columns(len(row))
-    for i, label in enumerate(row):
-        with cols[i]:
-            if st.button(label, key=f"btn_{label}"):
-                press(label)
+    return allowed
 
-# --- Footer ---
-st.markdown("---")
-st.markdown("""
-<div style='text-align:center; color:gray; font-size:0.9em;'>
-Built with ❤️ using <b>Streamlit</b> <br>
-Supports sin, cos, tan, log, ln, sqrt, factorial, exp, π, e, degree↔radian conversion.
-</div>
-""", unsafe_allow_html=True)
+# --- Helper to format result ---
