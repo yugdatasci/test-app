@@ -1,3 +1,5 @@
+pip install streamlit yfinance plotly pandas
+
 # Filename: stock_dashboard.py
 
 import streamlit as st
