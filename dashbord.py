@@ -1,9 +1,6 @@
 # Filename: stock_dashboard_fixed.py
 
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import plotly.graph_objects as go
+
 
 # Title
 st.title("📊 Stock Market Dashboard (NIFTY & Stocks)")
