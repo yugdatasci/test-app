@@ -1,11 +1,5 @@
 # app.py
-import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-import plotly.express as px
-from datetime import datetime
-from fredapi import Fred
+
 
 st.set_page_config(layout="wide", page_title="Monetary Policy & Inflation Dashboard")
 
