@@ -3,7 +3,13 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from statsmodels.tsa.arima.model 
+
+# Try to import ARIMA; if not available, use fallback
+try:
+    from statsmodels.tsa.arima.model import ARIMA
+    HAS_ARIMA = True
+except ModuleNotFoundError:
+    HAS_ARIMA = False
 
 # -----------------------------------------------------------
 #                    GLOBAL STYLING (RBI THEME)
@@ -46,11 +52,6 @@ h1, h2, h3 {
     color: white !important;
     border-radius: 8px;
 }
-
-/* Dataframe */
-[data-testid="stDataFrame"] {
-    background-color: white;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -60,7 +61,8 @@ h1, h2, h3 {
 st.sidebar.title("🏦 RBI Dashboard")
 page = st.sidebar.radio(
     "Navigation",
-    ["Home", "RISCO Meter", "Interest Rate Calculator", "USA CPI Dashboard", "World Inflation Dashboard"]
+    ["Home", "RISCO Meter", "Interest Rate Calculator",
+     "USA CPI Dashboard", "World Inflation Dashboard"]
 )
 
 # -----------------------------------------------------------
@@ -235,17 +237,24 @@ elif page == "World Inflation Dashboard":
         fig = px.line(df, x="Year", y=countries, title="Inflation Rate by Country (%)")
         st.plotly_chart(fig, use_container_width=True)
 
-        # Forecast (ARIMA simple)
         st.write("### 🔮 Forecast Next-Year Inflation")
 
         for c in countries:
             series = df[c]
 
-            try:
-                model = ARIMA(series, order=(1, 1, 1))
-                model_fit = model.fit()
-                forecast = model_fit.forecast(1)[0]
-
-                st.success(f"{c} – Forecast Inflation (Next Year): {forecast:.2f}%")
-            except Exception as e:
-                st.error(f"Could not forecast for {c}: {e}")
+            if HAS_ARIMA:
+                # ARIMA forecast
+                try:
+                    model = ARIMA(series, order=(1, 1, 1))
+                    model_fit = model.fit()
+                    forecast = model_fit.forecast(1)[0]
+                    st.success(f"{c} – Forecast Inflation (Next Year, ARIMA): {forecast:.2f}%")
+                except Exception as e:
+                    st.error(f"Could not forecast for {c} using ARIMA: {e}")
+            else:
+                # Simple fallback: next year = last known value
+                forecast = series.iloc[-1]
+                st.warning(
+                    f"{c} – Forecast Inflation (Next Year, simple): {forecast:.2f}% "
+                    "(ARIMA not available – install 'statsmodels' for advanced forecast)."
+                )
