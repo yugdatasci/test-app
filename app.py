@@ -128,4 +128,124 @@ elif page == "RISCO Meter":
                 },
                 title={'text': "Overall Risk Score"}
             ))
-            st.plotly_chart(fig, use_containe
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.subheader("📈 Portfolio Allocation")
+            pie = px.pie(
+                values=[equity, debt, gold],
+                names=["Equity", "Debt", "Gold"],
+                color_discrete_sequence=["#002B5C", "#D4AF37", "#8B0000"]
+            )
+            st.plotly_chart(pie, use_container_width=True)
+
+        st.success(f"Your Risk Category: *{category}*")
+
+# -----------------------------------------------------------
+#        2️⃣ INTEREST RATE CALCULATOR (ADVANCED)
+# -----------------------------------------------------------
+elif page == "Interest Rate Calculator":
+    st.title("💰 Interest Rate & EMI Calculator")
+
+    principal = st.number_input("Loan Amount (₹)", 1000, 100000000, 100000)
+    tenure = st.number_input("Tenure (Months)", 1, 360, 12)
+    rate = st.number_input("Interest Rate (% per year)", 0.0, 50.0, 8.0)
+
+    monthly_rate = rate / 12 / 100
+
+    if st.button("Calculate EMI"):
+        if monthly_rate == 0:
+            # No interest case
+            emi = principal / tenure
+        else:
+            # ✅ Correct EMI formula with exponent
+            r = monthly_rate
+            n = tenure
+            emi = principal * r * (1 + r) ** n / ((1 + r) ** n - 1)
+
+        st.subheader(f"📌 Monthly EMI: ₹ {emi:,.2f}")
+
+        # Amortization table
+        balance = principal
+        rows = []
+
+        for i in range(1, tenure + 1):
+            if monthly_rate == 0:
+                interest = 0
+            else:
+                interest = balance * monthly_rate
+            principal_paid = emi - interest
+            balance -= principal_paid
+            rows.append([i, emi, principal_paid, interest, max(balance, 0)])
+
+        df = pd.DataFrame(rows, columns=["Month", "EMI", "Principal", "Interest", "Balance"])
+
+        st.write("### 📄 Amortization Schedule")
+        st.dataframe(df, use_container_width=True)
+
+        st.write("### 📈 Loan Balance Over Time")
+        fig = px.line(df, x="Month", y="Balance", title="Loan Balance Over Time")
+        st.plotly_chart(fig, use_container_width=True)
+
+# -----------------------------------------------------------
+#            3️⃣ USA CPI DASHBOARD (ADVANCED)
+# -----------------------------------------------------------
+elif page == "USA CPI Dashboard":
+    st.title("🇺🇸 USA CPI Dashboard – Inflation Trends")
+
+    # sample dataset
+    cpi = pd.DataFrame({
+        "Year": list(range(2010, 2025)),
+        "CPI": [218, 224, 229, 232, 236, 237, 240, 245, 251, 255, 258, 262, 268, 277, 292]
+    })
+
+    st.write("### 📈 CPI Trend (USA)")
+    fig = px.line(cpi, x="Year", y="CPI", markers=True, title="USA CPI Index")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # YoY inflation
+    cpi["Inflation"] = cpi["CPI"].pct_change() * 100
+    st.write("### 📉 Year-on-Year Inflation")
+    fig2 = px.bar(cpi, x="Year", y="Inflation", title="USA YoY CPI Inflation (%)")
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.info("Federal Reserve Inflation Target: **2%**")
+
+# -----------------------------------------------------------
+#     4️⃣ WORLD INFLATION DASHBOARD (ADVANCED + FORECAST)
+# -----------------------------------------------------------
+elif page == "World Inflation Dashboard":
+    st.title("🌍 World Inflation Dashboard")
+
+    st.write("Select countries to compare:")
+
+    data = {
+        "Year": list(range(2010, 2025)),
+        "India": [10, 8, 7, 6, 5.5, 5, 4.8, 3.6, 4.9, 6.3, 5.1, 6.7, 7.2, 6.4, 5.8],
+        "USA":   [1.6, 3.2, 2.1, 1.5, 1.6, 0.1, 2.1, 2.4, 1.8, 2.3, 1.4, 7.0, 6.5, 4.1, 3.2],
+        "UK":    [3.3, 4.5, 2.8, 2.6, 1.5, 0.1, 0.8, 2.1, 2.5, 1.7, 2.2, 6.2, 7.3, 5.6, 3.8]
+    }
+
+    df = pd.DataFrame(data)
+
+    countries = st.multiselect("Countries", ["India", "USA", "UK"], ["India", "USA"])
+
+    if countries:
+        st.write("### 📈 Historical Inflation Comparison")
+        fig = px.line(df, x="Year", y=countries, title="Inflation Rate by Country (%)")
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Forecast (ARIMA simple)
+        st.write("### 🔮 Forecast Next-Year Inflation")
+
+        for c in countries:
+            series = df[c]
+
+            try:
+                model = ARIMA(series, order=(1, 1, 1))
+                model_fit = model.fit()
+                forecast = model_fit.forecast(1)[0]
+
+                st.success(f"{c} – Forecast Inflation (Next Year): {forecast:.2f}%")
+            except Exception as e:
+                st.error(f"Could not forecast for {c}: {e}")
